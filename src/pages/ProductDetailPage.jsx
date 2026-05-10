@@ -20,22 +20,47 @@ export default function ProductDetailPage() {
   const [reviewForm, setReviewForm] = useState({ rating: 5, comment: "" });
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    window.scrollTo(0, 0);
-    setLoading(true);
-    Promise.all([
-      api.get(`/products/${id}`),
-      api.get(`/products/${id}/reviews`).catch(() => ({ data: [] })),
-    ]).then(([{ data: p }, { data: r }]) => {
-      setProduct(p);
-      setReviews(Array.isArray(r) ? r : r.content ?? []);
-      if (p.category?.id) {
-        api.get(`/products/search?category=${p.category.name}&size=4`)
-          .then(({ data }) => setRelated((data.content ?? data).filter((x) => x.id !== p.id)));
+useEffect(() => {
+  window.scrollTo(0, 0);
+  setLoading(true);
+
+  async function loadProduct() {
+    try {
+      const [productResponse, reviewsResponse] = await Promise.all([
+        api.get(`/products/${id}`),
+        api.get(`/products/${id}/reviews`).catch(() => null),
+      ]);
+
+      const productData = productResponse.data.data;
+      const reviewList = reviewsResponse?.data?.data ?? [];
+
+      setProduct(productData);
+      setReviews(reviewList);
+
+      if (productData.categoryId) {
+        const relatedResponse = await api.get("/products/search", {
+          params: {
+            category: productData.categoryId,
+            size: 4,
+          },
+        });
+
+        const relatedProducts = relatedResponse.data.data ?? [];
+
+        setRelated(
+          relatedProducts.filter((item) => item.id !== productData.id)
+        );
       }
-    }).catch(() => {})
-      .finally(() => setLoading(false));
-  }, [id]);
+    } catch (error) {
+      console.error("Failed to load product:", error.message);
+      setProduct(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  loadProduct();
+}, [id]);
 
   const handleAddToCart = async () => {
     if (!isAuth) { navigate("/login"); return; }
@@ -50,7 +75,8 @@ export default function ProductDetailPage() {
     if (!isAuth) { navigate("/login"); return; }
     setSubmitting(true);
     try {
-      const { data } = await api.post(`/products/${id}/reviews`, reviewForm);
+      const response = await api.post(`/products/${id}/reviews`, reviewForm);
+      setReviews((prev) => [response.data.data, ...prev]);
       setReviews((prev) => [data, ...prev]);
       setReviewForm({ rating: 5, comment: "" });
     } catch (_) {}
@@ -76,9 +102,18 @@ export default function ProductDetailPage() {
   );
 
   const specs = product.specs ?? product.specifications ?? {};
-  const avgRating = reviews.length
-    ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)
-    : product.rating ?? "N/A";
+  const mainImage = product.imageUrls?.[0];
+  const availableStock = product.availableStock ?? 0;
+  const inStock = availableStock > 0;
+  const categoryLabel = product.categoryName ?? product.brand;
+
+  const avgRating = product.averageRating ?? (
+    reviews.length
+      ? (reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length).toFixed(1)
+      : "N/A"
+  );
+
+  const reviewCount = product.reviewCount ?? reviews.length;
 
   return (
     <div className="min-h-screen bg-[#080d1a] text-white font-['DM_Sans']">
@@ -96,19 +131,24 @@ export default function ProductDetailPage() {
         <div className="grid lg:grid-cols-2 gap-12 mb-16">
           {/* Image */}
           <div className="rounded-3xl border border-white/10 bg-[#0f172a] overflow-hidden flex items-center justify-center min-h-80">
-            {product.imageUrl
-              ? <img src={product.imageUrl} alt={product.name} className="w-full h-96 object-contain p-8" />
-              : <span className="text-[120px]">{product.emoji ?? "📦"}</span>
-            }
+            {mainImage ? (
+              <img
+                src={mainImage}
+                alt={product.name}
+                className="w-full h-96 object-contain p-8"
+              />
+            ) : (
+              <span className="text-[120px]">📦</span>
+            )}
           </div>
 
           {/* Info */}
           <div>
             <div className="flex items-center gap-2 mb-3">
               <span className="text-xs font-medium text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">
-                {product.category?.name}
+                {categoryLabel}
               </span>
-              {product.stock > 0
+              {inStock
                 ? <span className="text-xs text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full">En stock</span>
                 : <span className="text-xs text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full">Rupture de stock</span>
               }
@@ -126,7 +166,7 @@ export default function ProductDetailPage() {
                   </svg>
                 ))}
               </div>
-              <span className="text-sm text-slate-400">{avgRating} ({reviews.length} avis)</span>
+              <span className="text-sm text-slate-400">{avgRating} ({reviewCount} avis)</span>
             </div>
 
             <p className="font-['Syne'] text-4xl font-bold text-white mb-2">
@@ -146,13 +186,13 @@ export default function ProductDetailPage() {
                 <button onClick={() => setQty((q) => Math.max(1, q - 1))}
                   className="px-3 py-2 text-slate-400 hover:text-white transition-colors">–</button>
                 <span className="w-8 text-center text-sm font-semibold">{qty}</span>
-                <button onClick={() => setQty((q) => Math.min(product.stock, q + 1))}
+                <button onClick={() => setQty((q) => Math.min(availableStock, q + 1))}
                   className="px-3 py-2 text-slate-400 hover:text-white transition-colors">+</button>
               </div>
 
               <button
                 onClick={handleAddToCart}
-                disabled={adding || product.stock === 0}
+                disabled={adding || !inStock}
                 className="flex-1 rounded-xl bg-blue-500 py-3 font-semibold text-white hover:bg-blue-400 disabled:opacity-50 transition-all duration-200 flex items-center justify-center gap-2"
               >
                 {adding ? (
@@ -170,7 +210,7 @@ export default function ProductDetailPage() {
             </div>
 
             <p className="text-xs text-slate-600">
-              {product.stock} unités disponibles • Livraison estimée sous 2-5 jours ouvrables
+              {availableStock} unités disponibles • Livraison estimée sous 2-5 jours ouvrables
             </p>
           </div>
         </div>
@@ -251,10 +291,10 @@ export default function ProductDetailPage() {
               <p className="text-slate-500 text-sm">Aucun avis pour le moment. Soyez le premier !</p>
             ) : (
               reviews.map((r) => (
-                <div key={r.id} className="rounded-2xl border border-white/5 bg-[#0f172a] p-5">
+                <div key={r.reviewId} className="rounded-2xl border border-white/5 bg-[#0f172a] p-5">
                   <div className="flex items-start justify-between mb-2">
                     <div>
-                      <p className="text-sm font-semibold text-white">{r.user?.email?.split("@")[0] ?? "Utilisateur"}</p>
+                      <p className="text-sm font-semibold text-white">{r.reviewerName ?? "Utilisateur"}</p>
                       <div className="flex gap-0.5 mt-0.5">
                         {[...Array(5)].map((_, i) => (
                           <svg key={i} className={`h-3 w-3 ${i < r.rating ? "text-yellow-400" : "text-slate-700"}`}
@@ -284,8 +324,15 @@ export default function ProductDetailPage() {
                 <div key={p.id} onClick={() => navigate(`/products/${p.id}`)}
                   className="group cursor-pointer rounded-2xl border border-white/5 bg-[#0f172a] p-4 hover:border-blue-500/30 transition-all">
                   <div className="h-32 flex items-center justify-center mb-3 rounded-xl bg-white/5">
-                    {p.imageUrl ? <img src={p.imageUrl} alt={p.name} className="h-full w-full object-contain p-4" />
-                      : <span className="text-4xl">{p.emoji ?? "📦"}</span>}
+                    {p.imageUrls?.[0] ? (
+                      <img
+                        src={p.imageUrls[0]}
+                        alt={p.name}
+                        className="h-full w-full object-contain p-4"
+                      />
+                    ) : (
+                      <span className="text-4xl">📦</span>
+                    )}
                   </div>
                   <p className="text-xs font-semibold text-white line-clamp-2 group-hover:text-blue-300 transition-colors">{p.name}</p>
                   <p className="font-['Syne'] font-bold text-blue-400 mt-1">${Number(p.price).toFixed(2)}</p>

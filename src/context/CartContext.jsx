@@ -1,47 +1,124 @@
-import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+} from "react";
 import api from "../api/axios";
 import { useAuth } from "./AuthContext";
 
 const CartContext = createContext(null);
 
+const emptyCart = {
+  cartId: null,
+  items: [],
+  totalAmount: 0,
+};
+
 export function CartProvider({ children }) {
-  const { isAuth } = useAuth();
-  const [cart, setCart]       = useState({ items: [], total: 0 });
+  const { isAuth, isAdmin } = useAuth();
+
+  const [cart, setCart] = useState(emptyCart);
   const [loading, setLoading] = useState(false);
 
   const fetchCart = useCallback(async () => {
-    if (!isAuth) return;
+    if (!isAuth || isAdmin) {
+      setCart(emptyCart);
+      return;
+    }
+
     setLoading(true);
+
     try {
-      const { data } = await api.get("/cart");
-      setCart(data);
-    } catch (_) {}
-    finally { setLoading(false); }
-  }, [isAuth]);
+      const response = await api.get("/cart");
+      setCart(response.data.data ?? emptyCart);
+    } catch (error) {
+      console.error("Failed to fetch cart:", error.message);
+      setCart(emptyCart);
+    } finally {
+      setLoading(false);
+    }
+  }, [isAuth, isAdmin]);
 
-  useEffect(() => { fetchCart(); }, [fetchCart]);
+  useEffect(() => {
+    fetchCart();
+  }, [fetchCart]);
 
-  const addItem = useCallback(async (productId, quantity = 1) => {
-    const { data } = await api.post("/cart/items", { productId, quantity });
-    setCart(data);
+  const addItem = useCallback(
+    async (productId, quantity = 1) => {
+      if (!isAuth) {
+        throw new Error("Vous devez vous connecter pour ajouter au panier.");
+      }
+
+      if (isAdmin) {
+        throw new Error("Un administrateur ne peut pas utiliser le panier.");
+      }
+
+      const response = await api.post("/cart/items", { productId, quantity });
+      setCart(response.data.data ?? emptyCart);
+      return response.data.data;
+    },
+    [isAuth, isAdmin]
+  );
+
+  const removeItem = useCallback(
+    async (productId) => {
+      if (!isAuth || isAdmin) return emptyCart;
+
+      const response = await api.delete(`/cart/items/${productId}`);
+      setCart(response.data.data ?? emptyCart);
+      return response.data.data;
+    },
+    [isAuth, isAdmin]
+  );
+
+  const updateQuantity = useCallback(
+    async (productId, quantity) => {
+      if (!isAuth || isAdmin) return emptyCart;
+
+      const response = await api.put(`/cart/items/${productId}`, null, {
+        params: { quantity },
+      });
+
+      setCart(response.data.data ?? emptyCart);
+      return response.data.data;
+    },
+    [isAuth, isAdmin]
+  );
+
+  const clearCart = useCallback(async () => {
+    if (!isAuth || isAdmin) {
+      setCart(emptyCart);
+      return emptyCart;
+    }
+
+    const response = await api.delete("/cart");
+    setCart(response.data.data ?? emptyCart);
+    return response.data.data;
+  }, [isAuth, isAdmin]);
+
+  const resetCartLocal = useCallback(() => {
+    setCart(emptyCart);
   }, []);
 
-  const removeItem = useCallback(async (itemId) => {
-    const { data } = await api.delete(`/cart/items/${itemId}`);
-    setCart(data);
-  }, []);
-
-  const updateQuantity = useCallback(async (itemId, quantity) => {
-    const { data } = await api.put(`/cart/items/${itemId}`, { quantity });
-    setCart(data);
-  }, []);
-
-  const clearCart = useCallback(() => setCart({ items: [], total: 0 }), []);
-
-  const itemCount = cart.items?.reduce((sum, i) => sum + i.quantity, 0) ?? 0;
+  const itemCount =
+    cart.items?.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
 
   return (
-    <CartContext.Provider value={{ cart, loading, itemCount, fetchCart, addItem, removeItem, updateQuantity, clearCart }}>
+    <CartContext.Provider
+      value={{
+        cart,
+        loading,
+        itemCount,
+        fetchCart,
+        addItem,
+        removeItem,
+        updateQuantity,
+        clearCart,
+        resetCartLocal,
+      }}
+    >
       {children}
     </CartContext.Provider>
   );

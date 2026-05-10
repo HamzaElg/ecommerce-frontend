@@ -22,7 +22,7 @@ export default function RegisterPage() {
       await register({ firstName: form.firstName, lastName: form.lastName, email: form.email, password: form.password });
       navigate("/");
     } catch (err) {
-      setError(err.response?.data?.message ?? "Une erreur est survenue lors de l'inscription.");
+      setError(err.message ?? "Une erreur est survenue lors de l'inscription.");
     } finally {
       setLoading(false);
     }

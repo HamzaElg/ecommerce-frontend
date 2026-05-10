@@ -30,18 +30,18 @@ export default function CatalogPage() {
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        page, size: PAGE_SIZE,
-        ...(query    && { q: query }),
-        ...(category && category !== "Tous" && { category }),
-        ...(sort     && { sort }),
+      const params = {
+        page,
+        size: PAGE_SIZE,
+        ...(query && { q: query }),
+        ...(category && { category }),
         ...(minPrice && { minPrice }),
         ...(maxPrice && { maxPrice }),
-      });
-      const { data } = await api.get(`/products/search?${params}`);
-      const result = data.data ?? data;
-      setProducts(result.content ?? result);
-      setTotal(result.totalElements ?? result.length ?? 0);
+      };
+      const response = await api.get("/products/search", { params });
+
+      setProducts(response.data.data ?? []);
+      setTotal(response.data.pagination?.totalElements ?? 0);
     } catch {
       setProducts([]);
     } finally {
@@ -194,25 +194,49 @@ export default function CatalogPage() {
 
 function CatalogCard({ product }) {
   const navigate = useNavigate();
+
+  const mainImage = product.imageUrls?.[0];
+  const availableStock = product.availableStock ?? 0;
+  const inStock = availableStock > 0;
+
   return (
-    <div onClick={() => navigate(`/products/${product.id}`)}
-      className="group cursor-pointer rounded-2xl border border-white/5 bg-[#0f172a] p-4 hover:border-blue-500/30 hover:bg-[#111827] transition-all duration-200">
+    <div
+      onClick={() => navigate(`/products/${product.id}`)}
+      className="group cursor-pointer rounded-2xl border border-white/5 bg-[#0f172a] p-4 hover:border-blue-500/30 hover:bg-[#111827] transition-all duration-200"
+    >
       <div className="mb-3 h-40 overflow-hidden rounded-xl bg-white/5 flex items-center justify-center">
-        {product.imageUrl
-          ? <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300" />
-          : <span className="text-5xl">{product.emoji ?? "📦"}</span>
-        }
+        {mainImage ? (
+          <img
+            src={mainImage}
+            alt={product.name}
+            className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+          />
+        ) : (
+          <span className="text-5xl">📦</span>
+        )}
       </div>
-      <p className="text-xs text-slate-500 mb-1">{product.category?.name}</p>
+
+      <p className="text-xs text-slate-500 mb-1">
+        {product.categoryName ?? product.brand}
+      </p>
+
       <h3 className="text-sm font-semibold text-white line-clamp-2 mb-2 group-hover:text-blue-300 transition-colors">
         {product.name}
       </h3>
+
       <div className="flex items-center justify-between mt-auto">
-        <p className="font-['Syne'] font-bold text-white">${Number(product.price).toFixed(2)}</p>
-        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-          product.stock > 0 ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"
-        }`}>
-          {product.stock > 0 ? "En stock" : "Épuisé"}
+        <p className="font-['Syne'] font-bold text-white">
+          ${Number(product.price).toFixed(2)}
+        </p>
+
+        <span
+          className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+            inStock
+              ? "bg-green-500/10 text-green-400"
+              : "bg-red-500/10 text-red-400"
+          }`}
+        >
+          {inStock ? `${availableStock} en stock` : "Épuisé"}
         </span>
       </div>
     </div>

@@ -20,7 +20,7 @@ export default function LoginPage() {
       const user = await login(form.email, form.password);
       navigate(user.role === "ADMIN" ? "/admin" : "/");
     } catch (err) {
-      setError(err.response?.data?.message ?? "Email ou mot de passe incorrect.");
+      setError(err.message ?? "Email ou mot de passe incorrect.");
     } finally {
       setLoading(false);
     }
