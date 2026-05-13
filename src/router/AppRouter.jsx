@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 import Navbar        from "../components/shared/Navbar";
@@ -50,12 +50,45 @@ function PublicLayout({ children }) {
       <main>{children}</main>
       <Footer />
       <ChatbotWidget />
+      <MobileHomeButton />
     </>
   );
 }
 
 function AdminLayout({ children }) {
-  return <>{children}<ChatbotWidget /></>;
+  return (
+    <>
+      <MobileAdminHeader />
+      {children}
+      <ChatbotWidget />
+      <MobileHomeButton />
+    </>
+  );
+}
+
+function MobileHomeButton() {
+  return (
+    <Link
+      to="/"
+      className="fixed bottom-6 left-6 z-50 rounded-full border border-white/10 bg-[#0f172a]/95 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-black/30 backdrop-blur transition-colors hover:bg-[#111827] lg:hidden"
+    >
+      Accueil
+    </Link>
+  );
+}
+
+function MobileAdminHeader() {
+  return (
+    <div className="sticky top-0 z-40 flex items-center justify-between border-b border-white/10 bg-[#080d1a]/95 px-4 py-3 text-white backdrop-blur lg:hidden">
+      <Link to="/" className="font-['Syne'] text-sm font-bold">
+        ElectroShop
+      </Link>
+      <div className="flex gap-3 text-sm">
+        <Link to="/admin" className="text-slate-300 hover:text-white">Admin</Link>
+        <Link to="/catalog" className="text-slate-300 hover:text-white">Catalogue</Link>
+      </div>
+    </div>
+  );
 }
 
 // ── Router ────────────────────────────────────────────────────────────────

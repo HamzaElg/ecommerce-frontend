@@ -1,40 +1,54 @@
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import api from "../../api/axios";
 
 const SUGGESTIONS = [
-  "Meilleurs casques audio ?",
+  "Montre-moi des laptops sous 1500",
+  "Recommande un telephone avec bonne camera",
   "Suivi de ma commande",
-  "Remboursement produit",
-  "Promotions en cours",
+  "Produits gaming disponibles ?",
 ];
 
 export default function ChatbotWidget() {
-  const [open, setOpen]       = useState(false);
+  const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
     { role: "assistant", text: "Bonjour ! Comment puis-je vous aider aujourd'hui ?" },
   ]);
-  const [input, setInput]     = useState("");
+  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const bottomRef             = useRef(null);
+  const bottomRef = useRef(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, loading]);
 
   const send = async (text) => {
-    if (!text.trim()) return;
-    const userMsg = { role: "user", text };
-    setMessages((prev) => [...prev, userMsg]);
+    const cleanText = text.trim();
+    if (!cleanText || loading) return;
+
+    setMessages((prev) => [...prev, { role: "user", text: cleanText }]);
     setInput("");
     setLoading(true);
 
     try {
-      const { data } = await api.post("/chat", { message: text });
-      setMessages((prev) => [...prev, { role: "assistant", text: data.reply || data.message }]);
-    } catch {
+      const { data } = await api.post("/chat", { message: cleanText });
+      const chatData = data?.data;
+
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", text: "Désolé, une erreur est survenue. Réessayez dans un instant." },
+        {
+          role: "assistant",
+          text: chatData?.reply || "Je n'ai pas trouve de reponse pour le moment.",
+          products: chatData?.recommendedProducts || [],
+        },
+      ]);
+    } catch (error) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          text: error?.message || "Desole, une erreur est survenue. Reessayez dans un instant.",
+        },
       ]);
     } finally {
       setLoading(false);
@@ -43,63 +57,99 @@ export default function ChatbotWidget() {
 
   return (
     <>
-      {/* Floating button */}
       <button
+        type="button"
         onClick={() => setOpen(!open)}
-        className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-blue-500 shadow-lg shadow-blue-500/30 hover:bg-blue-400 transition-all duration-200 hover:scale-110"
+        className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-blue-500 shadow-lg shadow-blue-500/30 transition-all duration-200 hover:scale-110 hover:bg-blue-400"
+        aria-label={open ? "Fermer le chat" : "Ouvrir le chat"}
       >
         {open ? (
           <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18 18 6M6 6l12 12" />
           </svg>
         ) : (
           <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-5l-5 5v-5z"
+            />
           </svg>
         )}
       </button>
 
-      {/* Chat window */}
       {open && (
-        <div className="fixed bottom-24 right-6 z-50 flex w-80 flex-col rounded-2xl border border-white/10 bg-[#0f172a] shadow-2xl shadow-black/50 overflow-hidden">
-          {/* Header */}
+        <div className="fixed bottom-24 right-6 z-50 flex w-80 max-w-[calc(100vw-3rem)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0f172a] shadow-2xl shadow-black/50">
           <div className="flex items-center gap-3 border-b border-white/5 bg-[#111827] px-4 py-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500">
               <svg className="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-2" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9.75 17 9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-2"
+                />
               </svg>
             </div>
             <div>
               <p className="text-sm font-semibold text-white">E-com Assistant</p>
-              <p className="text-xs text-green-400 flex items-center gap-1">
-                <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-400"></span>
+              <p className="flex items-center gap-1 text-xs text-green-400">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-400" />
                 En ligne
               </p>
             </div>
           </div>
 
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 max-h-72">
-            {messages.map((msg, i) => (
-              <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
-                  msg.role === "user"
-                    ? "bg-blue-500 text-white rounded-br-sm"
-                    : "bg-white/5 text-slate-200 rounded-bl-sm"
-                }`}>
-                  {msg.text}
+          <div className="max-h-80 flex-1 space-y-3 overflow-y-auto p-4">
+            {messages.map((msg, index) => (
+              <div key={`${msg.role}-${index}`} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div
+                  className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
+                    msg.role === "user"
+                      ? "rounded-br-sm bg-blue-500 text-white"
+                      : "rounded-bl-sm bg-white/5 text-slate-200"
+                  }`}
+                >
+                  <div className="whitespace-pre-line">{msg.text}</div>
+
+                  {msg.products?.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      {msg.products.map((product) => (
+                        <Link
+                          key={product.id}
+                          to={`/products/${product.id}`}
+                          onClick={() => setOpen(false)}
+                          className="flex gap-2 rounded-xl border border-white/10 bg-black/20 p-2 transition-colors hover:bg-white/10"
+                        >
+                          <img
+                            src={product.imageUrls?.[0] || "/placeholder-product.png"}
+                            alt={product.name}
+                            className="h-12 w-12 rounded-lg bg-white/10 object-cover"
+                          />
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-semibold text-white">{product.name}</p>
+                            <p className="truncate text-xs text-slate-400">{product.brand}</p>
+                            <p className="text-xs font-semibold text-blue-300">{product.price} DH</p>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
+
             {loading && (
               <div className="flex justify-start">
-                <div className="bg-white/5 rounded-2xl rounded-bl-sm px-4 py-2">
+                <div className="rounded-2xl rounded-bl-sm bg-white/5 px-4 py-2">
                   <div className="flex gap-1">
-                    {[0,1,2].map(i => (
-                      <span key={i} className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce"
-                        style={{ animationDelay: `${i * 0.15}s` }} />
+                    {[0, 1, 2].map((item) => (
+                      <span
+                        key={item}
+                        className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400"
+                        style={{ animationDelay: `${item * 0.15}s` }}
+                      />
                     ))}
                   </div>
                 </div>
@@ -108,34 +158,44 @@ export default function ChatbotWidget() {
             <div ref={bottomRef} />
           </div>
 
-          {/* Suggestions */}
           {messages.length <= 1 && (
-            <div className="px-4 pb-2 flex flex-wrap gap-1.5">
-              {SUGGESTIONS.map((s) => (
-                <button key={s} onClick={() => send(s)}
-                  className="rounded-full border border-blue-500/30 px-2.5 py-1 text-xs text-blue-400 hover:bg-blue-500/10 transition-colors">
-                  {s}
+            <div className="flex flex-wrap gap-1.5 px-4 pb-2">
+              {SUGGESTIONS.map((suggestion) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  onClick={() => send(suggestion)}
+                  className="rounded-full border border-blue-500/30 px-2.5 py-1 text-xs text-blue-400 transition-colors hover:bg-blue-500/10"
+                >
+                  {suggestion}
                 </button>
               ))}
             </div>
           )}
 
-          {/* Input */}
-          <div className="border-t border-white/5 p-3 flex gap-2">
+          <div className="flex gap-2 border-t border-white/5 p-3">
             <input
               value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && send(input)}
+              onChange={(event) => setInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  send(input);
+                }
+              }}
               placeholder="Tapez votre message..."
-              className="flex-1 rounded-xl bg-white/5 px-3 py-2 text-sm text-white placeholder-slate-500 outline-none focus:ring-1 focus:ring-blue-500/50"
+              disabled={loading}
+              className="flex-1 rounded-xl bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-slate-500 focus:ring-1 focus:ring-blue-500/50"
             />
             <button
+              type="button"
               onClick={() => send(input)}
               disabled={loading || !input.trim()}
-              className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500 text-white hover:bg-blue-400 disabled:opacity-40 transition-colors"
+              className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500 text-white transition-colors hover:bg-blue-400 disabled:opacity-40"
+              aria-label="Envoyer"
             >
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m12 19 9 2-9-18-9 18 9-2Zm0 0v-8" />
               </svg>
             </button>
           </div>
